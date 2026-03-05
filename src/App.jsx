@@ -75,6 +75,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showGluons, setShowGluons] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
   const [activeGluonCounts, setActiveGluonCounts] = useState(new Array(8).fill(0));
   const [antiquarkCount, setAntiquarkCount] = useState(0);
 
@@ -136,8 +137,7 @@ export default function App() {
         b: initialColor.b,
         isSea: false,
         isAnti: false,
-        dead: false,
-        pendingSwap: false 
+        dead: false
       });
     }
   }, [numQuarks]);
@@ -308,11 +308,11 @@ export default function App() {
 
     for (let i = 0; i < state.quarks.length; i++) {
       let q1 = state.quarks[i];
-      if (q1.dead || q1.pendingSwap) continue;
+      if (q1.dead) continue;
 
       for (let j = i + 1; j < state.quarks.length; j++) {
         let q2 = state.quarks[j];
-        if (q2.dead || q2.pendingSwap) continue;
+        if (q2.dead) continue;
 
         if (Math.random() < exchangeProbability) {
           let distSq = Math.pow(q1.x - q2.x, 2) + Math.pow(q1.y - q2.y, 2);
@@ -322,6 +322,8 @@ export default function App() {
 
             if (temp1 !== temp2) {
               gluonType = GLUON_STATES.find(s => s.colors[0] === temp1 && s.colors[1] === temp2);
+              q1.colorIdx = temp2;
+              q2.colorIdx = temp1;
             } else {
               if (temp1 === 0) gluonType = GLUON_STATES[6];
               else if (temp1 === 1) gluonType = GLUON_STATES[6];
@@ -329,19 +331,13 @@ export default function App() {
             }
 
             if (gluonType) {
-              q1.pendingSwap = true;
-              q2.pendingSwap = true;
               state.gluons.push({
                 source: q1, target: q2,
                 typeId: gluonType.id, typeName: gluonType.name,
                 c1: QUARK_COLORS[temp1],         
                 c2: ANTIQUARK_COLORS[temp2],     
                 life: 0, maxLife: 8 + Math.random() * 15,
-                fluctuationOffset: Math.random() * 60 - 30,
-                swapDone: false,
-                newColorSource: temp2,
-                newColorTarget: temp1,
-                swapSea: true
+                fluctuationOffset: Math.random() * 60 - 30
               });
             }
           }
@@ -351,11 +347,11 @@ export default function App() {
 
     for (let i = 0; i < state.antiquarks.length; i++) {
       let aq1 = state.antiquarks[i];
-      if (aq1.dead || aq1.pendingSwap) continue;
+      if (aq1.dead) continue;
 
       for (let j = i + 1; j < state.antiquarks.length; j++) {
         let aq2 = state.antiquarks[j];
-        if (aq2.dead || aq2.pendingSwap) continue;
+        if (aq2.dead) continue;
 
         if (Math.random() < exchangeProbability) {
           let distSq = Math.pow(aq1.x - aq2.x, 2) + Math.pow(aq1.y - aq2.y, 2);
@@ -365,6 +361,8 @@ export default function App() {
 
             if (temp1 !== temp2) {
               gluonType = GLUON_STATES.find(s => s.colors[0] === temp2 && s.colors[1] === temp1);
+              aq1.colorIdx = temp2;
+              aq2.colorIdx = temp1;
             } else {
               if (temp1 === 0) gluonType = GLUON_STATES[6];
               else if (temp1 === 1) gluonType = GLUON_STATES[6];
@@ -372,19 +370,13 @@ export default function App() {
             }
 
             if (gluonType) {
-              aq1.pendingSwap = true;
-              aq2.pendingSwap = true;
               state.gluons.push({
                 source: aq1, target: aq2,
                 typeId: gluonType.id, typeName: gluonType.name,
                 c1: ANTIQUARK_COLORS[temp1], 
                 c2: QUARK_COLORS[temp2],     
                 life: 0, maxLife: 8 + Math.random() * 15,
-                fluctuationOffset: Math.random() * 60 - 30,
-                swapDone: false,
-                newColorSource: temp2,
-                newColorTarget: temp1,
-                swapSea: false
+                fluctuationOffset: Math.random() * 60 - 30
               });
             }
           }
@@ -399,10 +391,6 @@ export default function App() {
       let g = state.gluons[k];
       
       if (g.source.dead || g.target.dead) {
-        if (!g.swapDone) {
-          if (!g.source.dead) g.source.pendingSwap = false;
-          if (!g.target.dead) g.target.pendingSwap = false;
-        }
         state.gluons.splice(k, 1);
         continue;
       }
@@ -423,7 +411,7 @@ export default function App() {
           vx: dx * 0.05, vy: dy * 0.05,
           colorIdx: c,
           r: qC.r, g: qC.g, b: qC.b,
-          isSea: true, isAnti: false, dead: false, pendingSwap: false
+          isSea: true, isAnti: false, dead: false
         });
 
         state.antiquarks.push({
@@ -432,39 +420,16 @@ export default function App() {
           vx: -dx * 0.05, vy: -dy * 0.05,
           colorIdx: c,
           r: aqC.r, g: aqC.g, b: aqC.b,
-          isAnti: true, dead: false, pendingSwap: false
+          isAnti: true, dead: false
         });
 
-        if (!g.swapDone) {
-          g.source.pendingSwap = false;
-          g.target.pendingSwap = false;
-        }
         state.gluons.splice(k, 1);
         continue;
-      }
-
-      if (!g.swapDone && g.life >= g.maxLife / 2) {
-        g.source.colorIdx = g.newColorSource;
-        g.target.colorIdx = g.newColorTarget;
-        
-        if (g.swapSea) {
-          let tempSea = g.source.isSea;
-          g.source.isSea = g.target.isSea;
-          g.target.isSea = tempSea;
-        }
-
-        g.source.pendingSwap = false; 
-        g.target.pendingSwap = false; 
-        g.swapDone = true;
       }
 
       counts[g.typeId - 1]++;
       g.life += 1 * cfg.timeScale;
       if (g.life >= g.maxLife) {
-        if (!g.swapDone) {
-          g.source.pendingSwap = false;
-          g.target.pendingSwap = false;
-        }
         state.gluons.splice(k, 1);
       }
     }
@@ -524,8 +489,9 @@ export default function App() {
     for (let q of state.quarks) {
       if (q.dead) continue;
       
-      const currentRgb = `${Math.round(q.r)}, ${Math.round(q.g)}, ${Math.round(q.b)}`;
-      const currentSolid = `rgb(${currentRgb})`;
+      const colorObj = QUARK_COLORS[q.colorIdx];
+      const currentRgb = colorObj.rgb;
+      const currentSolid = colorObj.hex;
       
       const gradient = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, qSize * 2);
       gradient.addColorStop(0, '#ffffff'); 
@@ -542,8 +508,9 @@ export default function App() {
     for (let aq of state.antiquarks) {
       if (aq.dead) continue;
 
-      const currentRgb = `${Math.round(aq.r)}, ${Math.round(aq.g)}, ${Math.round(aq.b)}`;
-      const currentSolid = `rgb(${currentRgb})`;
+      const colorObj = ANTIQUARK_COLORS[aq.colorIdx];
+      const currentRgb = colorObj.rgb;
+      const currentSolid = colorObj.hex;
       
       const gradient = ctx.createRadialGradient(aq.x, aq.y, 0, aq.x, aq.y, qSize * 2);
       gradient.addColorStop(0, '#ffffff'); 
@@ -571,24 +538,25 @@ export default function App() {
     <div className="relative w-screen h-screen overflow-hidden bg-black text-gray-200 font-sans selection:bg-gray-700">
       <canvas ref={canvasRef} width={dimensions.width} height={dimensions.height} className="absolute inset-0 z-0 bg-black" />
 
-      <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-3">
-        <div>
-          <h1 className="text-2xl tracking-wider text-white bg-black/50 px-3 py-1 rounded shadow-lg backdrop-blur-sm inline-block">
-            <strong>QCD</strong> <span className="text-gray-400 font-light text-xl">Visualization</span>
+      <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-3 items-start">
+        <div className="flex flex-row items-center gap-3">
+          <h1 className="text-2xl tracking-wider text-white bg-black/50 px-3 py-1 rounded shadow-lg backdrop-blur-sm inline-block m-0 text-center">
+            <strong className="font-bold">QCD</strong> <span className="text-gray-400 font-light text-xl">Visualization</span>
           </h1>
-          <div className="mt-2 text-xs text-gray-400 bg-gray-900/80 backdrop-blur-xl p-3 rounded-xl border border-gray-700 pointer-events-auto max-w-xs shadow-lg">
-            This is a visualization of a baryon (like proton) based on Quantum Chromodynamics (QCD). This is in no way a precise scientific model, but it captures some of the qualitative behaviors of quarks, gluons, and their interactions. It mainly shows how at low x values, the internal structure of the baryon becomes more complex and at high. Also note that there are only 3 valance quarks but here you should interpret them probabilisticallly.
+          <button 
+            onClick={() => setShowInfo(!showInfo)} 
+            className={`pointer-events-auto w-8 h-8 rounded-full flex justify-center items-center font-serif italic text-lg transition border shadow-lg backdrop-blur-sm ${showInfo ? 'bg-gray-800 border-gray-400 text-white' : 'bg-black/50 border-gray-600 text-gray-400 hover:text-white hover:border-gray-400'}`}
+            title="Information"
+          >
+            i
+          </button>
+        </div>
+
+        {showInfo && (
+          <div className="text-xs text-gray-400 bg-gray-900/80 backdrop-blur-xl p-4 rounded-xl border border-gray-700 pointer-events-auto max-w-sm shadow-lg leading-relaxed">
+            <p> This is a visualization of a baryon (like proton) based on Quantum Chromodynamics (QCD). This is in no way a precise scientific model, but it captures some of the qualitative behaviors of quarks, gluons, and their interactions. It mainly shows how at low x values, the internal structure of the baryon becomes more complex and at high. Also note that there are only 3 valance quarks but here you should interpret them probabilisticallly.</p>
           </div>
-        </div>
-        
-        <div className="flex flex-row gap-3 pointer-events-auto bg-gray-900/80 backdrop-blur-xl p-2 rounded-2xl shadow-2xl border border-gray-700 w-fit">
-          <button onClick={() => setIsRunning(!isRunning)} className={`w-12 h-12 flex justify-center items-center font-bold rounded-xl transition text-xl ${isRunning ? 'bg-red-600/90 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-green-600/90 hover:bg-green-500 text-white'}`}>
-            {isRunning ? '⏸' : '▶'}
-          </button>
-          <button onClick={initSimulation} className="w-12 h-12 flex justify-center items-center bg-blue-600/90 hover:bg-blue-500 text-white font-bold rounded-xl transition text-2xl shadow-[0_0_15px_rgba(37,99,235,0.5)]">
-            ↺
-          </button>
-        </div>
+        )}
       </div>
 
       <div className="absolute top-4 right-4 z-20 pointer-events-none flex flex-col items-end gap-2">
@@ -683,25 +651,56 @@ export default function App() {
       </div>
 
       <div className="absolute bottom-6 left-0 right-0 z-20 flex justify-center pointer-events-none px-4">
-        <div className="pointer-events-auto bg-gray-900/80 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-gray-700 flex flex-col md:flex-row gap-6 w-full max-w-3xl items-center">
-          
-          <label className="flex flex-col flex-1 text-xs font-bold text-white w-full">
-            <div className="flex justify-between mb-2">
-              <span className="text-sm">Bjorken x</span>
-              <span className="font-mono text-blue-300 text-sm bg-gray-800 px-2 rounded">{displayBjorkenX.toExponential(2)}</span>
-            </div>
-            <input type="range" min="0.001" max="1.0" step="0.001" value={bjorkenX} onChange={e => setBjorkenX(Number(e.target.value))} className="accent-blue-500 h-2 w-full cursor-pointer" />
-          </label>
+        <div className="pointer-events-auto bg-gray-900/80 backdrop-blur-xl p-5 rounded-3xl shadow-2xl border border-gray-700 flex flex-row gap-4 w-full max-w-4xl items-center">
+          <div className="flex flex-col md:flex-row flex-1 gap-6 items-center">
+            <label className="flex flex-col flex-1 text-xs font-bold text-white w-full">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm">Bjorken x</span>
+                <span className="font-mono text-blue-300 text-sm bg-gray-800 px-2 rounded">{displayBjorkenX.toExponential(2)}</span>
+              </div>
+              <input type="range" min="0.001" max="1.0" step="0.001" value={bjorkenX} onChange={e => setBjorkenX(Number(e.target.value))} className="accent-blue-500 h-2 w-full cursor-pointer" />
+            </label>
 
-          <div className="hidden md:block w-px h-8 bg-gray-700 mx-2"></div>
-
-          <label className="flex flex-col flex-1 text-xs font-bold text-white w-full">
-            <div className="flex justify-between mb-2">
-              <span className="text-sm">Time Scale</span>
-              <span className="font-mono text-purple-300 text-sm bg-gray-800 px-2 rounded">{timeScale.toFixed(2)}x</span>
+            <div className="hidden md:flex flex-row gap-3">
+              <button 
+                onClick={() => setIsRunning(!isRunning)} 
+                className={`w-10 h-10 flex justify-center items-center font-bold rounded-xl transition text-xl ${isRunning ? 'bg-red-600/90 hover:bg-red-500 text-white shadow-[0_0_10px_rgba(220,38,38,0.4)]' : 'bg-green-600/90 hover:bg-green-500 text-white'}`}
+                title={isRunning ? "Pause" : "Play"}
+              >
+                {isRunning ? '⏸' : '▶'}
+              </button>
+              <button 
+                onClick={initSimulation} 
+                className="w-10 h-10 flex justify-center items-center bg-blue-600/90 hover:bg-blue-500 text-white font-bold rounded-xl transition text-2xl shadow-[0_0_10px_rgba(37,99,235,0.4)]"
+                title="Reset"
+              >
+                ↺
+              </button>
             </div>
-            <input type="range" min="0.05" max="2.0" step="0.05" value={timeScale} onChange={e => setTimeScale(Number(e.target.value))} className="accent-purple-500 h-2 w-full cursor-pointer" />
-          </label>
+
+            <label className="flex flex-col flex-1 text-xs font-bold text-white w-full">
+              <div className="flex justify-between mb-2">
+                <span className="text-sm">Time Scale</span>
+                <span className="font-mono text-purple-300 text-sm bg-gray-800 px-2 rounded">{timeScale.toFixed(2)}x</span>
+              </div>
+              <input type="range" min="0.05" max="2.0" step="0.05" value={timeScale} onChange={e => setTimeScale(Number(e.target.value))} className="accent-purple-500 h-2 w-full cursor-pointer" />
+            </label>
+          </div>
+
+          <div className="flex md:hidden flex-col gap-3">
+            <button 
+              onClick={() => setIsRunning(!isRunning)} 
+              className={`w-12 h-12 flex justify-center items-center font-bold rounded-xl transition text-xl ${isRunning ? 'bg-red-600/90 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-green-600/90 hover:bg-green-500 text-white'}`}
+            >
+              {isRunning ? '⏸' : '▶'}
+            </button>
+            <button 
+              onClick={initSimulation} 
+              className="w-12 h-12 flex justify-center items-center bg-blue-600/90 hover:bg-blue-500 text-white font-bold rounded-xl transition text-2xl shadow-[0_0_15px_rgba(37,99,235,0.5)]"
+            >
+              ↺
+            </button>
+          </div>
         </div>
       </div>
       
